@@ -3,111 +3,101 @@
 pipeline{
 
     agent any
-    //agent { label 'Demo' }
 
     parameters{
-
-        choice(name: 'action', choices: 'create\ndelete', description: 'Choose create/Destroy')
-        string(name: 'ImageName', description: "name of the docker build", defaultValue: 'javapp')
-        string(name: 'ImageTag', description: "tag of the docker build", defaultValue: 'v1')
-        string(name: 'DockerHubUser', description: "name of the Application", defaultValue: 'gopikrishna05')
+        choice(name: 'action', choices: ['create','delete'], description: 'Choose create/Destroy')
+        string(name: 'ImageName', defaultValue: 'javapp', description: "docker image name")
+        string(name: 'ImageTag', defaultValue: 'v1', description: "docker image tag")
+        string(name: 'DockerHubUser', defaultValue: 'gopikrishna05', description: "dockerhub user")
     }
 
     stages{
-         
-        stage('Git Checkout'){
-                    when { expression {  params.action == 'create' } }
-            steps{
-            gitCheckout(
-                branch: "main",
-                url: "https://github.com/Gopikrishna-05/JAVA-APPLICATION-3.0.git"
-            )
-            }
-        }
-         stage('Unit Test maven'){
-         
-         when { expression {  params.action == 'create' } }
 
+        stage('Git Checkout'){
+            when { expression { params.action == 'create' } }
             steps{
-               script{
-                   
-                   mvnTest()
-               }
+                gitCheckout(
+                    branch: "main",
+                    url: "https://github.com/Gopikrishna-05/JAVA-APPLICATION-3.0.git"
+                )
             }
         }
-         stage('Integration Test maven'){
-         when { expression {  params.action == 'create' } }
+
+        stage('Unit Test'){
+            when { expression { params.action == 'create' } }
             steps{
-               script{
-                   
-                   mvnIntegrationTest()
-               }
+                script{ mvnTest() }
             }
         }
-        stage('Static code analysis: Sonarqube'){
-         when { expression {  params.action == 'create' } }
+
+        stage('Integration Test'){
+            when { expression { params.action == 'create' } }
             steps{
-               script{
-                   
-                   def SonarQubecredentialsId = 'sonarqube-api'
-                   statiCodeAnalysis(SonarQubecredentialsId)
-               }
-            }
-       }
-       stage('Quality Gate Status Check : Sonarqube'){
-         when { expression {  params.action == 'create' } }
-            steps{
-               script{
-                   
-                   def SonarQubecredentialsId = 'sonarqube-api'
-                   QualityGateStatus(SonarQubecredentialsId)
-               }
-            }
-       }
-        stage('Maven Build : maven'){
-         when { expression {  params.action == 'create' } }
-            steps{
-               script{
-                   
-                   mvnBuild()
-               }
-            }
-        } 
-        stage('Docker Image Build'){
-         when { expression {  params.action == 'create' } }
-            steps{
-               script{
-                   
-                   dockerBuild("${params.ImageName}","${params.ImageTag}","${params.DockerHubUser}")
-               }
+                script{ mvnIntegrationTest() }
             }
         }
-         stage('Docker Image Scan: trivy '){
-         when { expression {  params.action == 'create' } }
+
+        stage('SonarQube Analysis'){
+            when { expression { params.action == 'create' } }
             steps{
-               script{
-                   
-                   dockerImageScan("${params.ImageName}","${params.ImageTag}","${params.DockerHubUser}")
-               }
+                script{
+                    def sonarId = 'sonarqube-api'
+                    statiCodeAnalysis(sonarId)
+                }
             }
         }
-        stage('Docker Image Push : DockerHub '){
-         when { expression {  params.action == 'create' } }
+
+        stage('Quality Gate'){
+            when { expression { params.action == 'create' } }
             steps{
-               script{
-                   
-                   dockerImagePush("${params.ImageName}","${params.ImageTag}","${params.DockerHubUser}")
-               }
+                script{
+                    def sonarId = 'sonarqube-api'
+                    QualityGateStatus(sonarId)
+                }
             }
-        }   
-        stage('Docker Image Cleanup : DockerHub '){
-         when { expression {  params.action == 'create' } }
+        }
+
+        stage('Maven Build'){
+            when { expression { params.action == 'create' } }
             steps{
-               script{
-                   
-                   dockerImageCleanup("${params.ImageName}","${params.ImageTag}","${params.DockerHubUser}")
-               }
+                script{ mvnBuild() }
             }
-        }      
+        }
+
+        stage('Docker Build'){
+            when { expression { params.action == 'create' } }
+            steps{
+                script{
+                    dockerBuild(params.ImageName, params.ImageTag, params.DockerHubUser)
+                }
+            }
+        }
+
+        stage('Docker Scan'){
+            when { expression { params.action == 'create' } }
+            steps{
+                script{
+                    dockerImageScan(params.ImageName, params.ImageTag, params.DockerHubUser)
+                }
+            }
+        }
+
+        stage('Docker Push'){
+            when { expression { params.action == 'create' } }
+            steps{
+                script{
+                    dockerImagePush(params.ImageName, params.ImageTag, params.DockerHubUser)
+                }
+            }
+        }
+
+        stage('Docker Cleanup'){
+            when { expression { params.action == 'create' } }
+            steps{
+                script{
+                    dockerImageCleanup(params.ImageName, params.ImageTag, params.DockerHubUser)
+                }
+            }
+        }
     }
 }
